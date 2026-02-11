@@ -1,1 +1,0 @@
-https://www.sports-reference.com/cbb/players/natalie-novosel-1.html#all_players_advanced

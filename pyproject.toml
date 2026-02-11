@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ncaaw-stats"
+version = "0.1.0"
+description = "NCAA women's basketball to WNBA success analytics pipeline."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+dependencies = [
+  "pandas>=1.5",
+  "numpy>=1.23",
+  "requests>=2.28",
+  "beautifulsoup4>=4.11",
+  "lxml>=4.9",
+  "html5lib>=1.1",
+  "python-dotenv>=1.0",
+  "scikit-learn>=1.2",
+  "joblib>=1.2",
+]
+
+[project.optional-dependencies]
+# Optional ML/Viz extras
+viz = ["matplotlib>=3.7", "seaborn>=0.13"]
+xgboost = ["xgboost>=1.7"]
+# Optional slide generation
+pptx = ["python-pptx>=0.6.21"]
+# Dev tooling
+dev = ["ruff>=0.3", "pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,26 +1,37 @@
-# Ignore Mac system files
-.DS_store
+# macOS
+.DS_Store
 
-# Ignore node_modules folder
-node_modules
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+build/
+dist/
 
-# Ignore all text files
-*.txt
-*.csv
-
-# Ignore files related to API keys
+# Environments
+.venv/
+venv/
 .env
+.env.*
 
-# Ignore SASS config files
-.sass-cache
-/old
-/teams
-/*players*
-/*seasons*
-/*ncaa*
-/*seasons*
-/wnba*
-all_players.csv
-all_teams.csv
-*.csv
-*.xlsx*
+# IDE
+.vscode/
+
+# Data & artifacts (keep small samples only)
+/data/raw/
+/data/interim/
+/data/processed/
+/data/external/
+/artifacts/
+
+# Allow data documentation and samples
+!data/README.md
+!data/samples/
+!data/samples/**
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Reports generated artifacts (keep curated outputs only)
+/reports/analysis/
