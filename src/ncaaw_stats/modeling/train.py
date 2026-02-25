@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
+from sklearn.feature_selection import SelectFromModel, SelectKBest, mutual_info_classif
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -53,6 +54,9 @@ class TrainingResult:
     time_cutoff: Optional[int]
     train_size: int
     test_size: int
+    selected_features: List[str]
+    feature_selection: str
+    feature_selection_params: Dict[str, Any]
 
 
 def _binary_target(series: pd.Series) -> pd.Series:
@@ -113,6 +117,41 @@ def _max_combinations(param_grid: Dict[str, Iterable[Any]]) -> int:
     for values in param_grid.values():
         total *= len(list(values))
     return total
+
+
+def build_feature_selector(
+    strategy: str,
+    k_best: int = 30,
+) -> Optional[Any]:
+    strategy = strategy.lower()
+    if strategy == "none":
+        return None
+
+    if strategy == "kbest":
+        return SelectKBest(score_func=mutual_info_classif, k=k_best)
+
+    if strategy == "l1":
+        return SelectFromModel(
+            LogisticRegression(
+                penalty="l1",
+                solver="liblinear",
+                max_iter=5000,
+                class_weight="balanced",
+                random_state=RANDOM_STATE,
+            )
+        )
+
+    if strategy == "rf":
+        return SelectFromModel(
+            RandomForestClassifier(
+                n_estimators=300,
+                random_state=RANDOM_STATE,
+                n_jobs=-1,
+                class_weight="balanced",
+            )
+        )
+
+    raise ValueError(f"Unknown feature selection strategy: {strategy}")
 
 
 def _model_candidates() -> List[Tuple[str, Any, Dict[str, Any]]]:
@@ -193,6 +232,8 @@ def train_best_model(
     cv_splits: int = 5,
     time_column: Optional[str] = None,
     time_cutoff: Optional[int] = None,
+    feature_selection: str = "none",
+    k_best: int = 30,
 ) -> TrainingResult:
     X, y, categorical_cols, numeric_cols = prepare_training_frame(df, target, drop_columns)
 
@@ -218,6 +259,7 @@ def train_best_model(
         )
 
     preprocessor = build_preprocessor(categorical_cols, numeric_cols)
+    selector = build_feature_selector(feature_selection, k_best=k_best)
     cv = StratifiedKFold(n_splits=cv_splits, shuffle=True, random_state=RANDOM_STATE)
 
     best_model = None
@@ -226,12 +268,12 @@ def train_best_model(
     best_name = ""
 
     for name, estimator, param_grid in _model_candidates():
-        pipeline = Pipeline(
-            steps=[
-                ("preprocess", preprocessor),
-                ("model", estimator),
-            ]
-        )
+        pipeline_steps = [("preprocess", preprocessor)]
+        if selector is not None:
+            pipeline_steps.append(("feature_select", selector))
+        pipeline_steps.append(("model", estimator))
+
+        pipeline = Pipeline(steps=pipeline_steps)
 
         max_iter = min(search_iterations, _max_combinations(param_grid))
         search = RandomizedSearchCV(
@@ -267,6 +309,16 @@ def train_best_model(
         "pr_auc": average_precision_score(y_test, y_proba),
     }
 
+    feature_names = list(
+        best_model.named_steps["preprocess"].get_feature_names_out()
+    )
+    selected_features = feature_names
+    if "feature_select" in best_model.named_steps:
+        selector_step = best_model.named_steps["feature_select"]
+        if hasattr(selector_step, "get_support"):
+            mask = selector_step.get_support()
+            selected_features = list(np.array(feature_names)[mask])
+
     result = TrainingResult(
         model=best_model,
         metrics=metrics,
@@ -280,6 +332,9 @@ def train_best_model(
         time_cutoff=time_cutoff,
         train_size=int(len(X_train)),
         test_size=int(len(X_test)),
+        selected_features=selected_features,
+        feature_selection=feature_selection,
+        feature_selection_params={"k_best": k_best},
     )
     return result
 
@@ -296,6 +351,9 @@ def save_training_artifacts(result: TrainingResult, output_dir: Path) -> None:
         "features": result.features,
         "categorical_features": result.categorical_features,
         "numeric_features": result.numeric_features,
+        "selected_features": result.selected_features,
+        "feature_selection": result.feature_selection,
+        "feature_selection_params": result.feature_selection_params,
         "model_name": result.model_name,
         "best_params": result.best_params,
     }
@@ -312,6 +370,9 @@ def save_training_artifacts(result: TrainingResult, output_dir: Path) -> None:
         "time_cutoff": result.time_cutoff,
         "train_size": result.train_size,
         "test_size": result.test_size,
+        "feature_selection": result.feature_selection,
+        "feature_selection_params": result.feature_selection_params,
+        "selected_feature_count": len(result.selected_features),
     }
     (output_dir / "training_report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"

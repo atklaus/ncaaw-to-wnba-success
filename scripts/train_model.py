@@ -37,6 +37,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Train on <= cutoff year, test on > cutoff year.",
     )
+    parser.add_argument(
+        "--feature-selection",
+        type=str,
+        default="none",
+        help="Feature selection strategy: none, kbest, l1, rf",
+    )
+    parser.add_argument(
+        "--k-best",
+        type=int,
+        default=10,
+        help="Number of top features to keep when using kbest.",
+    )
     return parser.parse_args()
 
 
@@ -68,6 +80,8 @@ def main() -> None:
         cv_splits=args.cv_splits,
         time_column=args.time_col or None,
         time_cutoff=args.time_cutoff,
+        feature_selection=args.feature_selection,
+        k_best=args.k_best,
     )
     save_training_artifacts(result, args.out_dir)
 
